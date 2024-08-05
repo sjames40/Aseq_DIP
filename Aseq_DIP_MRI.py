@@ -112,6 +112,7 @@ gt1 = ksp_and_mps_to_gt(ksp1, mps1)
 gt1 = torch.abs(gt1)/torch.max(torch.abs(gt1))
 img_map = torch.sum(torch.abs(mps1), axis=0) > 0
 img_map = img_map.to(device)
+eplision = 1e-4 * torch.rand((640, 372), dtype=torch.complex64).to(device)
 
 
 
@@ -149,7 +150,7 @@ for epoch in tqdm(range(6000)):
 
     new_pred_ksp = (1 - mask_from_file).to(device) * pred_ksp.detach() / scale_factor + mask_from_file * ksp1
 
-    new_ref = ksp_and_mps_to_gt(new_pred_ksp, mps1)
+    new_ref = ksp_and_mps_to_gt(new_pred_ksp, mps1)#+eplision
 
     ref[:, 0, :, :] = new_ref.real
     ref[:, 1, :, :] = new_ref.imag
