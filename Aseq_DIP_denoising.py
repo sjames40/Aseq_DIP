@@ -163,9 +163,6 @@ losses = []
 psnrs = []
 avg_psnrs = []
 
-exp_weight = .99
-out_avg = torch.zeros_like(torch.abs(img_var)).to(device)
-#parameters_dict = {}
 for epoch in tqdm(range(5000)):
     optimizer.zero_grad()
     net_input = net_input + (noise.normal_() * reg_noise_std)
@@ -182,16 +179,11 @@ for epoch in tqdm(range(5000)):
     
         losses.append(loss.item())
     
-        out_avg = out_avg * exp_weight + out * (1 - exp_weight)
-    
-    
-        avg_psnr = compare_psnr(np.array(img_var.cpu()), np.array(out_avg.cpu()))
-        avg_psnrs.append(avg_psnr)
 
         if epoch%show_every == 0:
             plt.figure(figsize=(12,12))
             plt.subplot(131)
-            plt.imshow(out_avg.cpu()[0].permute(1,2,0))
+            plt.imshow(out.cpu()[0].permute(1,2,0))
             plt.axis('off')
             plt.title('Sliding Average\nPSNR = ' + str(round(avg_psnr, 2)))
             #plt.colorbar(shrink=0.5, pad=0.05)
