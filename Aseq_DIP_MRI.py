@@ -168,9 +168,7 @@ for epoch in tqdm(range(6000)):
         out = out.detach().squeeze()
 
         losses.append(loss.item())
-
-        out_avg = out_avg * exp_weight + out * (1 - exp_weight)
-        avg_psnr = compute_psnr(np.array(torch.abs(gt1)), np.array(out_avg.cpu())/float(out_avg.max().item()))
+        avg_psnr = compute_psnr(np.array(torch.abs(gt1)), np.array(out.cpu())/float(out.max().item()))
         avg_psnrs.append(avg_psnr)
 
         if epoch%show_every == 0:
