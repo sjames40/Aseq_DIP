@@ -165,7 +165,6 @@ avg_psnrs = []
 
 for epoch in tqdm(range(5000)):
     optimizer.zero_grad()
-    net_input = net_input + (noise.normal_() * reg_noise_std)
     out = net(net_input)
     loss_input = mse(net_input,out)
     loss = mse(out, img_noisy_torch)+1*loss_input
