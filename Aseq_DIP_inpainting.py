@@ -46,9 +46,9 @@ def compare_psnr(img1, img2):
 
 
 
-gt_path = '/home/shijunliang/SDF_data/diffusion-posterior-sampling-main/result/label/randomffhq00000test.npy'
-input_path = '/home/shijunliang/SDF_data/diffusion-posterior-sampling-main/result/input/randomffhq00000test.npy'
-mask_path = '/home/shijunliang/SDF_data/diffusion-posterior-sampling-main/result/mask/randomffhq00000test.npy'
+gt_path = '/../result/label/randomffhq00000test.npy'
+input_path = '/../result/input/randomffhq00000test.npy'
+mask_path = '/../result/mask/randomffhq00000test.npy'
 # Load the image
 gt = np.load(os.path.join(gt_path))input_mask = np.load(os.path.join(input_path))
 mask = np.load(os.path.join(mask_path))
