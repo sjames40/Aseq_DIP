@@ -16,3 +16,16 @@ Recently, Deep Image Prior (DIP) has emerged as an effective unsupervised one-sh
 
 ## Results:
 ![Alt text](aSeqDIP_visuals.png)
+
+### For MRI: 
+Download the [fastMRI](https://github.com/microsoft/fastmri-plus/tree/main) dataset. 
+
+### For sparse view CT: 
+Download the [AAPM](https://www.aapm.org/grandchallenge/lowdosect/) dataset.
+
+### For image restoration: 
+Setup the [DPS](https://github.com/DPS2022/diffusion-posterior-sampling) code needs to be setup for the pre-trained models and the forward models. 
+
+
+
+### To cite our paper, use the following: 
