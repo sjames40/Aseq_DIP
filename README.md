@@ -22,7 +22,7 @@ Download the [fastMRI](https://github.com/microsoft/fastmri-plus/tree/main) data
 Download the [AAPM](https://www.aapm.org/grandchallenge/lowdosect/) dataset.
 
 ### For image restoration: 
-Setup the [DPS](https://github.com/DPS2022/diffusion-posterior-sampling) code needs to be setup for the pre-trained models and the forward models. 
+Setup the [DPS](https://github.com/DPS2022/diffusion-posterior-sampling) code for the pre-trained models and the forward models. 
 
 
 
