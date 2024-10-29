@@ -29,7 +29,7 @@ Setup the [DPS](https://github.com/DPS2022/diffusion-posterior-sampling) code fo
 ### To cite our paper, use the following: 
 ```bibtex
 @inproceedings{alkhouriNeuIPS24,
-author    = {Alkhouri, Ismail and Linag, Shijun and Bell, Evan and Qu, Qing and Wang Rongrong and Ravishankar, Saiprasad },
+author    = {Alkhouri, Ismail and Linag, Shijun and Bell, Evan and Qu, Qing and Wang, Rongrong and Ravishankar, Saiprasad },
   title     = {Image Reconstruction Via Autoencoding Sequential Deep Image Prior},
   booktitle   = {Advances in neural information processing systems (NeurIPS)},
   year      = {2024}
