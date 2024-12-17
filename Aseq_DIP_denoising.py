@@ -167,7 +167,7 @@ for epoch in tqdm(range(5000)):
     optimizer.zero_grad()
     out = net(net_input)
     loss_input = mse(net_input,out)
-    loss = mse(out, img_noisy_torch)+1*loss_input
+    loss = mse(out, img_noisy_torch)+0.001*loss_input
     for i in range(2):
         optimizer.step()
         loss.backward(retain_graph=True)
