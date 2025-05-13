@@ -1,6 +1,6 @@
 # Image Reconstruction Via Autoencoding Sequential Deep Image Prior (aSeqDIP)
 
-## Neurips 2024
+## NeurIPS 2024
 
 **Authors**: Ismail R. Alkhouri*, Shijun Liang*, Evan Bell, Qing Qu, Rongrong Wang, and Saiprasad Ravishankar. 
 
