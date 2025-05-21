@@ -143,18 +143,16 @@ avg_psnrs = []
 exp_weight = .99
 out_avg = torch.zeros_like(img_torch)#.to(device)
 
-for epoch in tqdm(range(8000)):
+for epoch in tqdm(range(2000)):
     optimizer.zero_grad()
-    
-    net_output = net(ref)#.squeeze()
-    #net_output_final = random_smoothing_temp/1
-    pred_out = torch_radon(net_output)
-    pred_out = transform(pred_out)
-    loss = torch.linalg.norm(target_out - pred_out)+ alpha * torch.linalg.norm(ref - net_output)
-    #loss = MSE(target_out,pred_out)
-    for i in range(2):
-        loss.backward(retain_graph=True)
+    for i in range(20):
+        net_output = net(ref)
+        pred_out = torch_radon(net_output)
+        pred_out = transform(pred_out)
+        loss = torch.linalg.norm(target_out - pred_out)+ alpha * torch.linalg.norm(ref - net_output)
+        loss.backward()
         optimizer.step()
+    ref = net_output.detach()
     with torch.no_grad():
         out = net_output#torch_iradon(pred_out)
         out /= torch.max(out)
