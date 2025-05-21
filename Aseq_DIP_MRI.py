@@ -142,26 +142,24 @@ out_avg = torch.zeros_like(torch.abs(gt1)).to(device)
 
 
 for epoch in tqdm(range(6000)):
-    optimizer.zero_grad()
-    net_output = net(ref.to(device)).squeeze()
-    net_output = torch.view_as_complex(net_output.permute(1, 2, 0).contiguous())
-
-    pred_ksp = mps_and_gt_to_ksp(mps1.to(device), net_output)
-
-    new_pred_ksp = (1 - mask_from_file).to(device) * pred_ksp.detach() / scale_factor + mask_from_file * ksp1
-
-    new_ref = ksp_and_mps_to_gt(new_pred_ksp, mps1)#+eplision
-
+    for i in range(10):
+        optimizer.zero_grad()
+        net_output = net(ref.to(device)).squeeze()
+        net_output = torch.view_as_complex(net_output.permute(1, 2, 0).contiguous())
+        
+        pred_ksp = mps_and_gt_to_ksp(mps1.to(device), net_output)
+        
+        new_pred_ksp = (1 - mask_from_file).to(device) * pred_ksp.detach() / scale_factor + mask_from_file * ksp1
+    
+        
+        # Continue with your loss computation and optimization steps
+        loss = torch.linalg.norm(mask_from_file * target_ksp - mask_from_file * pred_ksp.squeeze())
+        + 1 * torch.linalg.norm(ref.to(device) - net_output)
+        optimizer.step()
+        loss.backward()
+    new_ref = ksp_and_mps_to_gt(new_pred_ksp, mps1)#+eplision    
     ref[:, 0, :, :] = new_ref.real
     ref[:, 1, :, :] = new_ref.imag
-
-    # Continue with your loss computation and optimization steps
-    loss = torch.linalg.norm(mask_from_file * target_ksp - mask_from_file * pred_ksp.squeeze())
-    + 1 * torch.linalg.norm(ref.to(device) - net_output)
-
-    for i in range(2):
-        optimizer.step()
-        loss.backward(retain_graph=True)
     with torch.no_grad():
         out = img_map.to(device) * torch.abs(net_output)
         out /= torch.max(out)
