@@ -178,7 +178,7 @@ for epoch in tqdm(range(5000)):
         loss = mse(out * mask_var, img_var * mask_var)+1*loss_input
     
         optimizer.step()
-        loss.backward(retain_graph=True)
+        loss.backward()
     net_input = (1 - mask_var) *out.detach() + mask_var * img_var
     with torch.no_grad():
         psnr = compare_psnr(np.array(img_var.cpu()), np.array(out.cpu()))
