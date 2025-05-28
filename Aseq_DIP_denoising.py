@@ -170,7 +170,7 @@ for epoch in tqdm(range(5000)):
         loss_input = mse(net_input,out)
         loss = mse(out, img_noisy_torch)+1*loss_input
         optimizer.step()
-        loss.backward(retain_graph=True)
+        loss.backward()
     net_input = img_noisy_torch-1*(out.detach()-img_noisy_torch)
     with torch.no_grad():
         psnr = compare_psnr(np.array(img_var.cpu()), np.array(out.cpu()))
