@@ -152,7 +152,9 @@ for epoch in tqdm(range(2000)):
         loss = torch.linalg.norm(target_out - pred_out)+ alpha * torch.linalg.norm(ref - net_output)
         loss.backward()
         optimizer.step()
-    ref = net_output.detach()
+    
+    net_output = net_output.detach()
+    ref = net_output/torch.max(net_output)
     with torch.no_grad():
         out = net_output#torch_iradon(pred_out)
         out /= torch.max(out)
