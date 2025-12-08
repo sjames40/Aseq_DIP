@@ -124,7 +124,7 @@ net = UNet(n_channels=3, n_classes=3).to(device)
 #net= nn.DataParallel(net).to(device)
 init_weights(net, init_type='normal',init_gain=0.02)
 num_epochs = 500
-learning_rate = 1e-4
+learning_rate = 3e-4
 show_every = 50
 
 
