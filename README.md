@@ -24,6 +24,13 @@ Download the [AAPM](https://www.aapm.org/grandchallenge/lowdosect/) dataset.
 ### For image restoration: 
 Setup the [DPS](https://github.com/DPS2022/diffusion-posterior-sampling) code for the forward models. 
 
+## Blur Operator Source
+
+In `Aseq_DIP_Deblurring.py`, the class `BlurOperator (torch.nn.Module)` is sourced from the following open-source repository:
+
+https://github.com/VinAIResearch/blur-kernel-space-exploring/tree/main
+
+The blur operator is used to construct the forward degradation model in the deblurring task.
 
 
 ### To cite our paper, use the following: 
