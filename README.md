@@ -32,6 +32,25 @@ https://github.com/VinAIResearch/blur-kernel-space-exploring/tree/main
 
 The blur operator is used to construct the forward degradation model in the deblurring task.
 
+## U-Net Architecture Usage
+
+Different U-Net architectures are used for different tasks in this repository.
+
+### MRI and CT Reconstruction
+
+For MRI and CT reconstruction tasks, we use the **Medium U-Net** architecture provided in the original aSeqDIP repository:
+
+- Medium U-Net implementation:  
+  https://github.com/sjames40/Aseq_DIP/blob/main/unet/medium_unet.py
+
+
+### Deblurring, Denoising, and Inpainting
+
+For image deblurring, denoising, and inpainting tasks, we use the standard **U-Net** architecture from the same repository:
+
+- U-Net implementation:  
+  https://github.com/sjames40/Aseq_DIP/blob/main/unet/unet.py
+
 
 ### To cite our paper, use the following: 
 ```bibtex
