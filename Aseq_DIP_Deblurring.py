@@ -79,8 +79,8 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     print('initialize network with %s' % init_type)
 
 # Path and parameter configuration
-fname_gt = '/egr/research-slim/sunyongl/fixed_the_code/Aseq_DIP-main/ffhq_dataset/00043.png'
-fname_blur = '/egr/research-slim/sunyongl/fixed_the_code/Aseq_DIP-main/ffhq_dataset/replicated_blur_00043.png'
+fname_gt = '/Aseq_DIP-main/ffhq_dataset/00043.png'
+fname_blur = '/Aseq_DIP-main/ffhq_dataset/replicated_blur_00043.png'
 
 N_iter = 2
 K_iter = 5000
