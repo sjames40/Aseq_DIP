@@ -28,6 +28,59 @@ class BlurOperator(torch.nn.Module):
     https://github.com/VinAIResearch/blur-kernel-space-exploring/tree/main
 
     """
+    
+    def __init__(self, device, kernel_size=64, channels=3, seed=None):
+        super(BlurOperator, self).__init__()
+        self.device = device
+        self.groups = channels
+        self.ksize = int(kernel_size)
+
+        self.pad_l = (self.ksize - 1) // 2
+        self.pad_r = self.ksize // 2
+        self.pad_t = (self.ksize - 1) // 2
+        self.pad_b = self.ksize // 2
+
+        if seed is not None:
+            np.random.seed(seed)
+        
+        canvas = self.ksize
+        max_len = 40
+        
+        trajectory = np.zeros((canvas, canvas))
+        x, y = canvas // 2, canvas // 2
+        trajectory[int(y), int(x)] = 1
+        
+        vx, vy = 1, 1 
+        points = []
+        for _ in range(max_len):
+            points.append((x, y))
+            dvx = np.random.uniform(-1, 1)
+            dvy = np.random.uniform(-1, 1)
+            vx += dvx * 0.5
+            vy += dvy * 0.5
+            x += vx
+            y += vy
+            if x < 0 or x >= canvas or y < 0 or y >= canvas:
+                break
+            if len(points) > 1:
+                cv2.line(trajectory, (int(points[-2][0]), int(points[-2][1])), 
+                         (int(x), int(y)), 1, 1)
+
+        kernel_sum = trajectory.sum()
+        if kernel_sum > 0:
+            trajectory /= kernel_sum
+        else:
+            trajectory[canvas//2, canvas//2] = 1.0
+
+        k_np = trajectory.astype(np.float32)
+        k_t = torch.from_numpy(k_np).view(1, 1, self.ksize, self.ksize)
+        
+        self.register_buffer('kernel', k_t.repeat(channels, 1, 1, 1))
+
+    def forward(self, x):
+        x_pad = F.pad(x, (self.pad_l, self.pad_r, self.pad_t, self.pad_b), mode='reflect')
+        
+        return F.conv2d(x_pad, self.kernel, padding=0, groups=self.groups)
 
 
 # Auxiliary functions
