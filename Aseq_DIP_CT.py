@@ -1,298 +1,194 @@
 import os
-import time
-import math
 import numpy as np
 import matplotlib.pyplot as plt
-
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
-import pydicom
+import torch.nn as nn
+from tqdm import tqdm
 from skimage.metrics import peak_signal_noise_ratio as compute_psnr
+from torch.nn import init
+import pydicom
 
-from unet import MediumUNet
+from unet import UNet, FullUNet, MediumUNet, OneLayerUNet, ExtraDeepUNet, SuperDeepUNet
+from physics.radon import Radon, IRadon
 
-
-# ============================================================
-# 0) Config
-# ============================================================
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# =========================
+# Device Configuration
+# =========================
+device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-img_path = "input-path"
+# =========================
+# Init weights
+# =========================
+def init_weights(net, init_type='normal', init_gain=0.02):
+    def init_func(m):  
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            if init_type == 'normal':
+                init.normal_(m.weight.data, 0.0, init_gain)
+            elif init_type == 'xavier':
+                init.xavier_normal_(m.weight.data, gain=init_gain)
+            elif init_type == 'kaiming':
+                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                init.orthogonal_(m.weight.data, gain=init_gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+            if hasattr(m, 'bias') and m.bias is not None:
+                init.constant_(m.bias.data, 0.0)
+        elif classname.find('BatchNorm2d') != -1:  
+            init.normal_(m.weight.data, 1.0, init_gain)
+            init.constant_(m.bias.data, 0.0)
 
-save_dir = "output-path"
+    net.apply(init_func)
+    print('initialize network with %s' % init_type)
+
+# =========================
+# data-path
+# =========================
+img_dir = 'your_data_path'
+
+dicom_data = pydicom.dcmread(img_dir)
+image = dicom_data.pixel_array.astype(np.float32)
+slope = getattr(dicom_data, 'RescaleSlope', 1)
+intercept = getattr(dicom_data, 'RescaleIntercept', 0)
+hu_image = image * slope + intercept
+
+img_torch = torch.tensor(hu_image).float().unsqueeze(0).unsqueeze(0).to(device)
+img_min = img_torch.min()
+img_max = img_torch.max()
+img_norm = (img_torch - img_min) / (img_max - img_min + 1e-8)
+
+num_angles = 30
+img_width = hu_image.shape[0]
+theta = np.linspace(0, 180, num_angles, endpoint=False)
+circle = False
+
+torch_radon = Radon(img_width, theta, circle).to(device)
+torch_iradon = IRadon(img_width, theta, circle).to(device)
+
+target_out = torch_radon(img_norm).detach()
+
+recon_out = torch_iradon(target_out).detach()
+
+ref_min = recon_out.min()
+ref_max = recon_out.max()
+ref = (recon_out - ref_min) / (ref_max - ref_min + 1e-8)
+ref = ref.clone().detach().to(device)
+
+net = MediumUNet(n_channels=1, n_classes=1).to(device)
+init_weights(net, init_type='normal', init_gain=0.02)
+learning_rate = 2e-4
+optimizer = optim.Adam(net.parameters(), lr=learning_rate)
+
+MSE = nn.MSELoss()
+alpha = 1.0
+show_every = 50
+
+losses = []
+psnrs = []
+avg_psnrs = []
+exp_weight = 0.99
+out_avg = torch.zeros_like(img_norm).to(device)
+
+best_psnr = -1e18
+best_epoch = -1
+
+save_dir = "result_path"
 os.makedirs(save_dir, exist_ok=True)
 
-NUM_VIEWS = 30
-FULL_VIEWS = 180
-USE_PAD725 = True
-
-K_STAGES = 3000
-N_STEPS_PER_STAGE = 5
-LAMBDA_AE = 1.0
-LR = 1e-4
-
-TV_WEIGHT = 1e-4
-
-SHOW_EVERY = 50
-SAVE_EVERY = 200
-
-SEED = 0
+save_path_png = os.path.join(save_dir, "recon_final.png")
+save_path_npy = os.path.join(save_dir, "recon_final.npy")
 
 
-# ============================================================
-# 1) Utils
-# ============================================================
-def set_seed(seed: int):
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+save_path_out_tpl = os.path.join(save_dir, "recon_out_epoch_{:04d}.png")
+save_path_avg_tpl = os.path.join(save_dir, "recon_avg_epoch_{:04d}.png")
 
-def inner_prod(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    return (a.reshape(-1) * b.reshape(-1)).sum()
+img_np = img_norm.cpu().numpy()
 
-def tv_loss(x: torch.Tensor) -> torch.Tensor:
-    dx = x[:, :, :, 1:] - x[:, :, :, :-1]
-    dy = x[:, :, 1:, :] - x[:, :, :-1, :]
-    return dx.abs().mean() + dy.abs().mean()
-
-def save_img(path: str, img2d: np.ndarray, title: str = None):
-    plt.figure(figsize=(6, 6))
-    plt.imshow(img2d, cmap="gray")
-    plt.axis("off")
-    if title is not None:
-        plt.title(title)
-    plt.tight_layout()
-    plt.savefig(path, dpi=150)
-    plt.close()
-
-def psnr_fixed_full(gt: torch.Tensor, out: torch.Tensor) -> float:
-    scale = gt.abs().max().item()
-    gt01 = (gt / (scale + 1e-8)).clamp(0, 1).squeeze().detach().cpu().numpy()
-    out01 = (out / (scale + 1e-8)).clamp(0, 1).squeeze().detach().cpu().numpy()
-    return float(compute_psnr(gt01, out01, data_range=1.0))
-
-
-# ============================================================
-# 2) Discrete Radon forward + EXACT discrete adjoint
-# ============================================================
-class RadonAutogradAdjoint:
-    def __init__(self, img_size: int, angles_deg: np.ndarray,
-                 align_corners: bool = True,
-                 padding_mode: str = "zeros"):
-        self.N = img_size
-        self.align_corners = align_corners
-        self.padding_mode = padding_mode
-
-        angles = np.deg2rad(angles_deg.astype(np.float32))
-        self.angles = torch.tensor(angles, dtype=torch.float32, device=device)
-        self.V = len(self.angles)
-
-        self.grids = []
-        for theta in self.angles:
-            c = torch.cos(theta)
-            s = torch.sin(theta)
-            R = torch.tensor([[ c, -s, 0],
-                              [ s,  c, 0]], dtype=torch.float32, device=device).unsqueeze(0)
-            grid = F.affine_grid(R, torch.Size([1, 1, self.N, self.N]), align_corners=self.align_corners)
-            self.grids.append(grid)
-
-    def A(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, N, _ = x.shape
-        y = torch.zeros((B, C, N, self.V), device=x.device, dtype=x.dtype)
-        for i, grid in enumerate(self.grids):
-            rotated = F.grid_sample(
-                x, grid.repeat(B, 1, 1, 1),
-                mode="bilinear",
-                padding_mode=self.padding_mode,
-                align_corners=self.align_corners
-            )
-            y[..., i] = rotated.sum(dim=2)
-        return y
-
-    def AH(self, s: torch.Tensor) -> torch.Tensor:
-        B, C, N, V = s.shape
-        assert N == self.N and V == self.V
-        with torch.enable_grad():
-            x = torch.zeros((B, C, self.N, self.N), device=s.device, dtype=s.dtype, requires_grad=True)
-            Ax = self.A(x)
-            dot = inner_prod(Ax, s)
-            (g,) = torch.autograd.grad(dot, x, create_graph=False, retain_graph=False)
-        return g.detach()
-
-
-# ============================================================
-# 3) Network
-# ============================================================
-class NetWrapper(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.net = MediumUNet(n_channels=1, n_classes=1)
-
-        for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.Linear)):
-                nn.init.normal_(m.weight, mean=0.0, std=0.02)
-                if getattr(m, "bias", None) is not None:
-                    nn.init.constant_(m.bias, 0.0)
-
-    def forward(self, z):
-        x = self.net(z)
-        x = torch.sigmoid(x)
-        return x
-
-
-# ============================================================
-# 4) Load CT slice
-# ============================================================
-set_seed(SEED)
-
-ds = pydicom.dcmread(img_path)
-img_np = ds.pixel_array.astype(np.float32)
-img_np = img_np / (np.max(np.abs(img_np)) + 1e-8)
-gt = torch.from_numpy(img_np).unsqueeze(0).unsqueeze(0).to(device)
-N = gt.shape[-1]
-
-save_img(os.path.join(save_dir, "gt.png"),
-         gt.squeeze().detach().cpu().numpy(),
-         title="GT (scaled)")
-
-
-# ============================================================
-# 5) Angles
-# ============================================================
-theta_full = np.linspace(0.0, 180.0, FULL_VIEWS, endpoint=False)
-idx = np.linspace(0, FULL_VIEWS - 1, NUM_VIEWS, dtype=int)
-theta_sparse = theta_full[idx]
-
-
-# ============================================================
-# 6) Operator + padding
-# ============================================================
-if USE_PAD725:
-    det = int(math.ceil(math.sqrt(2) * N))
-    pad = (det - N) // 2
-    gt_pad = F.pad(gt, (pad, det - N - pad, pad, det - N - pad))
-    op = RadonAutogradAdjoint(img_size=det, angles_deg=theta_sparse)
-else:
-    det = N
-    pad = 0
-    gt_pad = gt
-    op = RadonAutogradAdjoint(img_size=N, angles_deg=theta_sparse)
-
-
-# ============================================================
-# 7) Measurement
-# ============================================================
-with torch.no_grad():
-    y = op.A(gt_pad)
-
-y_scale = float(y.abs().mean().item())
-y_scale = max(y_scale, 1e-8)
-y_n = y / y_scale
-
-print("y shape:", tuple(y.shape), "y_scale:", y_scale)
-
-
-# ============================================================
-# 8) Init z0 = A^H y
-# ============================================================
-with torch.no_grad():
-    z0_pad = op.AH(y_n)
-    z0_pad = z0_pad / (z0_pad.abs().max() + 1e-8)
-    if USE_PAD725:
-        z0 = z0_pad[:, :, pad:pad+N, pad:pad+N]
-    else:
-        z0 = z0_pad
-
-
-# ============================================================
-# 9) aSeqDIP training
-# ============================================================
-net = NetWrapper().to(device)
-optm = optim.Adam(net.parameters(), lr=LR)
-mse = nn.MSELoss()
-
-z = z0.detach().clone()
-best_full = -1.0
-best_img = None
-
-psnr_full_hist = []
-loss_hist = []
-
-t0 = time.time()
-for k in range(K_STAGES):
-    for _ in range(N_STEPS_PER_STAGE):
-        optm.zero_grad(set_to_none=True)
-
-        xhat = net(z)
-
-        if USE_PAD725:
-            xhat_pad = F.pad(xhat, (pad, det - N - pad, pad, det - N - pad))
-            yhat = op.A(xhat_pad) / y_scale
-        else:
-            yhat = op.A(xhat) / y_scale
-
-        loss = mse(yhat, y_n) + LAMBDA_AE * mse(xhat, z)
-
-        if TV_WEIGHT > 0:
-            loss = loss + TV_WEIGHT * tv_loss(xhat)
-
+for epoch in tqdm(range(2000)):
+    for i in range(10):
+        optimizer.zero_grad()
+        net_output = net(ref)
+        pred_out = torch_radon(net_output)
+        
+        loss = torch.linalg.norm(target_out - pred_out) + alpha * torch.linalg.norm(ref - net_output)
+        
         loss.backward()
-        optm.step()
+        optimizer.step()
 
+    net_output = net_output.detach()
+    ref = net_output
+    
     with torch.no_grad():
-        z = net(z).detach()
+        out_eval = net_output.clone()
+        out_np = out_eval.cpu().numpy()
 
-        p_full = psnr_fixed_full(gt, z)
+        psnr = compute_psnr(img_np, out_np, data_range=1.0)
+        psnrs.append(psnr)
+        losses.append(loss.item())
 
-        psnr_full_hist.append(p_full)
-        loss_hist.append(float(loss.item()))
+        out_avg = out_avg * exp_weight + out_eval * (1 - exp_weight)
+        avg_psnr = compute_psnr(img_np, out_avg.cpu().numpy(), data_range=1.0)
+        avg_psnrs.append(avg_psnr)
 
-        if p_full > best_full:
-            best_full = p_full
-            best_img = z.squeeze().detach().cpu().numpy()
+        if epoch % 10 == 0:
+            print(f"[Epoch {epoch:04d}] PSNR={psnr:.4f}  AvgPSNR={avg_psnr:.4f}  Loss={loss.item():.6e}")
 
-    if (k % SHOW_EVERY) == 0:
-        msg = f"[k={k}] loss={loss.item():.4e} psnr_full={p_full:.4f} best_full={best_full:.4f}"
-        print(msg)
+        if psnr > best_psnr:
+            best_psnr = float(psnr)
+            best_epoch = int(epoch)
 
-    if (k % SAVE_EVERY) == 0:
-        save_img(os.path.join(save_dir, f"iter_{k:04d}.png"),
-                 z.squeeze().detach().cpu().numpy(),
-                 title=f"k={k}, PSNR(full)={p_full:.2f}")
+        if epoch % show_every == 0:
+            out_img = np.clip(out_eval[0][0].cpu().numpy(), 0, 1)
+            avg_img = np.clip(out_avg[0][0].cpu().numpy(), 0, 1)
 
-dt = time.time() - t0
-print(f"Training done in {dt:.2f}s")
-print(f"Best PSNR(full): {best_full}")
+            # save OUT
+            plt.figure(figsize=(6, 6))
+            plt.imshow(out_img, cmap='gray')
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig(save_path_out_tpl.format(epoch), dpi=300, bbox_inches='tight', pad_inches=0.0)
+            plt.close()
 
+            # save AVG OUT
+            plt.figure(figsize=(6, 6))
+            plt.imshow(avg_img, cmap='gray')
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig(save_path_avg_tpl.format(epoch), dpi=300, bbox_inches='tight', pad_inches=0.0)
+            plt.close()
 
-# ============================================================
-# 10) Save results
-# ============================================================
-final_img = z.squeeze().detach().cpu().numpy()
-plt.imsave(os.path.join(save_dir, "final_reconstruction.png"), final_img, cmap="gray")
-if best_img is not None:
-    plt.imsave(os.path.join(save_dir, "best_psnr_reconstruction.png"), best_img, cmap="gray")
+            plt.figure(figsize=(12, 6))
+            plt.subplot(121)
+            plt.imshow(out_img, cmap='gray')
+            plt.title('Reconstruction\nPSNR = ' + str(round(psnr, 2)))
+            plt.colorbar(fraction=0.046, pad=0.04)
 
-plt.figure()
-plt.plot(psnr_full_hist, label="PSNR(full)")
-plt.legend()
-plt.title("PSNR curves (fixed-scale)")
-plt.xlabel("stage k")
-plt.ylabel("PSNR (dB)")
+            plt.subplot(122)
+            plt.imshow(img_np[0][0], cmap='gray')
+            plt.title('Ground Truth')
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.show()
+
+print("\n========== Training Summary ==========")
+print(f"Best PSNR = {best_psnr:.6f} at epoch = {best_epoch}")
+print(f"Best AvgPSNR (max over epochs) = {float(np.max(avg_psnrs)):.6f}")
+
+final_out_np = out_eval[0][0].cpu().numpy()
+
+plt.figure(figsize=(6, 6))
+plt.imshow(np.clip(final_out_np, 0, 1), cmap='gray')
+plt.axis('off')
 plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "psnr_curves.png"), dpi=150)
+plt.savefig(save_path_png, dpi=300, bbox_inches='tight', pad_inches=0.0)
 plt.close()
 
-plt.figure()
-plt.plot(loss_hist)
-plt.title("Loss curve")
-plt.xlabel("stage k")
-plt.ylabel("loss")
-plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "loss_curve.png"), dpi=150)
-plt.close()
+np.save(save_path_npy, final_out_np)
 
-print("Saved to:", save_dir)
+print(f"Saved final reconstruction PNG to: {save_path_png}")
+print(f"Saved final reconstruction NPY to: {save_path_npy}")
+
+plt.imshow(np.clip(final_out_np, 0, 1), cmap='gray')
+plt.show()
