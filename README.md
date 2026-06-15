@@ -1,10 +1,18 @@
 # Image Reconstruction Via Autoencoding Sequential Deep Image Prior (aSeqDIP)
 
-## NeurIPS 2024
+[![NeurIPS](https://img.shields.io/badge/NeurIPS-2024-blue.svg)](https://neurips.cc/virtual/2024/poster/95683)
 
-**Authors**: Ismail R. Alkhouri*, Shijun Liang*, Evan Bell, Qing Qu, Rongrong Wang, and Saiprasad Ravishankar. 
+Repository with code to reproduce the results for **aSeqDIP** in our paper:
 
-**Paper page**: [NeurIPS 2024 virtual poster](https://neurips.cc/virtual/2024/poster/95683)
+### Image Reconstruction Via Autoencoding Sequential Deep Image Prior (aSeqDIP)
+
+**NeurIPS 2024**
+
+**Authors**: Ismail R. Alkhouri*, Shijun Liang*, Evan Bell, Qing Qu, Rongrong Wang, and Saiprasad Ravishankar.
+
+**Paper page**
+
+Paper link: [NeurIPS 2024 virtual poster](https://neurips.cc/virtual/2024/poster/95683)
 
 
 ### Abstract: 
