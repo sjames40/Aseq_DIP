@@ -1,3 +1,5 @@
+# Runs aSeqDIP for image denoising.
+
 from __future__ import print_function
 import matplotlib.pyplot as plt
 import os
