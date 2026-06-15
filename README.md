@@ -12,7 +12,7 @@ Repository with code to reproduce the results for **aSeqDIP** in our paper:
 
 **Paper page**
 
-Paper link: [NeurIPS 2024 virtual poster](https://neurips.cc/virtual/2024/poster/95683)
+Paper link: [NeurIPS 2024](https://neurips.cc/virtual/2024/poster/95683)
 
 
 ### Abstract: 
