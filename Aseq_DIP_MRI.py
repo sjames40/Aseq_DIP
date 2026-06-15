@@ -1,3 +1,5 @@
+# Runs aSeqDIP for multi-coil MRI reconstruction from undersampled k-space measurements.
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
