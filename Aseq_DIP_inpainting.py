@@ -1,3 +1,5 @@
+# Runs aSeqDIP for image inpainting by reconstructing masked pixels from box or Bernoulli-corrupted images.
+
 import os
 import argparse
 import numpy as np
