@@ -1,3 +1,5 @@
+# Runs aSeqDIP for sparse-view CT reconstruction from DICOM image data using Radon and inverse Radon operators.
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
