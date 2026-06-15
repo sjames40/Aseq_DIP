@@ -1,4 +1,4 @@
-# Runs aSeqDIP for image denoising.
+# Runs aSeqDIP for non-linear motion deblurring.
 
 from __future__ import print_function
 import matplotlib.pyplot as plt
